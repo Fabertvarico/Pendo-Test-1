@@ -36,6 +36,13 @@ export default function Home() {
   const [filterTab, setFilterTab] = useState('semua')
   const [toast, setToast] = useState<string | null>(null)
   const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0])
+  const [doctorSearch, setDoctorSearch] = useState('')
+  const [specialistFilter, setSpecialistFilter] = useState('Semua spesialis')
+  const [patientName, setPatientName] = useState('')
+  const [patientPhone, setPatientPhone] = useState('')
+  const [complaint, setComplaint] = useState('')
+  const [visitType, setVisitType] = useState('Konsultasi pertama')
+  const [riwayatSearch, setRiwayatSearch] = useState('')
 
   function navigate(p: Page) {
     track('nav_' + p)
@@ -63,11 +70,37 @@ export default function Home() {
   }
 
   function handleSubmitBooking() {
-    track('booking_submit', { doctor: selectedDoctor?.name, time: selectedTime, date: bookingDate })
+    track('booking_submit', {
+      doctorName: selectedDoctor?.name,
+      specialist: selectedDoctor?.spec,
+      appointmentTime: selectedTime,
+      appointmentDate: bookingDate,
+      patientName: patientName,
+      complaint: complaint,
+      visitType: visitType,
+      bookingDuration: '30 menit',
+    })
     showToast(`Booking berhasil! ${selectedDoctor?.name} jam ${selectedTime}`)
     setSelectedDoctor(null)
     setSelectedTime(null)
+    setPatientName('')
+    setPatientPhone('')
+    setComplaint('')
+    setVisitType('Konsultasi pertama')
   }
+
+  const filteredDoctors = doctors.filter(d => {
+    const matchesSearch = !doctorSearch || d.name.toLowerCase().includes(doctorSearch.toLowerCase())
+    const matchesFilter = specialistFilter === 'Semua spesialis' || d.spec.toLowerCase().includes(specialistFilter.toLowerCase())
+    return matchesSearch && matchesFilter
+  })
+
+  const filteredRecords = [
+    { icon: '🩺', title: 'Siti Rahayu — Konsultasi umum', desc: 'Diagnosa: ISPA ringan. Resep: Amoxicillin 500mg 3x1', date: '28 Mei', bg: '#E1F5EE' },
+    { icon: '❤️', title: 'Ani Wijaya — Pemeriksaan jantung', desc: 'EKG normal. Tekanan darah 120/80. Lanjut kontrol 1 bulan', date: '28 Mei', bg: '#E6F1FB' },
+    { icon: '💊', title: 'Budi Santoso — Follow-up diabetes', desc: 'Gula darah 145 mg/dL. Metformin dilanjutkan. Diet ketat', date: '27 Mei', bg: '#FAEEDA' },
+    { icon: '👶', title: 'Rina Dewi — Imunisasi anak', desc: 'Vaksin DPT booster. Tidak ada reaksi. Jadwal next 3 bulan', date: '26 Mei', bg: '#FBEAF0' },
+  ].filter(r => !riwayatSearch || r.title.toLowerCase().includes(riwayatSearch.toLowerCase()))
 
   const step = !selectedDoctor ? 1 : !selectedTime ? 2 : 3
 
@@ -189,8 +222,8 @@ export default function Home() {
             <div style={{ background: 'white', border: '1px solid #e5e5e5', borderRadius: 12, padding: '1.25rem', marginBottom: '1rem' }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: '1rem' }}>Pilih dokter</div>
               <div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
-                <input placeholder="Cari nama dokter..." onChange={() => track('booking_search_dokter')} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
-                <select onChange={() => track('booking_filter_spesialis')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }}>
+                <input placeholder="Cari nama dokter..." value={doctorSearch} onChange={e => { const q = e.target.value; setDoctorSearch(q); const results = doctors.filter(d => { const ms = !q || d.name.toLowerCase().includes(q.toLowerCase()); const mf = specialistFilter === 'Semua spesialis' || d.spec.toLowerCase().includes(specialistFilter.toLowerCase()); return ms && mf }); track('booking_search_dokter', { searchQuery: q, resultsCount: results.length, specialistFilter: specialistFilter }) }} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
+                <select value={specialistFilter} onChange={e => { const val = e.target.value; setSpecialistFilter(val); const results = doctors.filter(d => { const ms = !doctorSearch || d.name.toLowerCase().includes(doctorSearch.toLowerCase()); const mf = val === 'Semua spesialis' || d.spec.toLowerCase().includes(val.toLowerCase()); return ms && mf }); track('booking_filter_spesialis', { filterValue: val, resultsCount: results.length }) }} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }}>
                   <option>Semua spesialis</option>
                   <option>Umum</option>
                   <option>Penyakit dalam</option>
@@ -199,7 +232,7 @@ export default function Home() {
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {doctors.map(doc => (
+                {filteredDoctors.map(doc => (
                   <div key={doc.id} onClick={() => handleSelectDoctor(doc)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, borderRadius: 8, border: `1px solid ${selectedDoctor?.id === doc.id ? '#1D9E75' : '#e5e5e5'}`, background: selectedDoctor?.id === doc.id ? '#E1F5EE' : 'none', cursor: doc.available ? 'pointer' : 'not-allowed', opacity: doc.available ? 1 : 0.5 }}>
                     <div style={{ width: 36, height: 36, borderRadius: '50%', background: doc.color, color: doc.textColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500 }}>{doc.initials}</div>
                     <div style={{ flex: 1 }}>
@@ -243,19 +276,21 @@ export default function Home() {
               <div style={{ background: 'white', border: '1px solid #e5e5e5', borderRadius: 12, padding: '1.25rem' }}>
                 <div style={{ fontSize: 14, fontWeight: 500, marginBottom: '1rem' }}>Detail pasien</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  {[
-                    { label: 'Nama lengkap', placeholder: 'Nama pasien', id: 'booking_input_nama' },
-                    { label: 'No. telepon', placeholder: '08xx', id: 'booking_input_telepon' },
-                    { label: 'Keluhan utama', placeholder: 'Tuliskan keluhan...', id: 'booking_input_keluhan' },
-                  ].map(f => (
-                    <div key={f.id}>
-                      <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>{f.label}</label>
-                      <input placeholder={f.placeholder} onChange={() => track(f.id)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
-                    </div>
-                  ))}
+                  <div>
+                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>Nama lengkap</label>
+                    <input placeholder="Nama pasien" value={patientName} onChange={e => { setPatientName(e.target.value); track('booking_input_nama') }} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>No. telepon</label>
+                    <input placeholder="08xx" value={patientPhone} onChange={e => { setPatientPhone(e.target.value); track('booking_input_telepon') }} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>Keluhan utama</label>
+                    <input placeholder="Tuliskan keluhan..." value={complaint} onChange={e => { setComplaint(e.target.value); track('booking_input_keluhan') }} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
+                  </div>
                   <div>
                     <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>Jenis kunjungan</label>
-                    <select onChange={() => track('booking_jenis_kunjungan')} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }}>
+                    <select value={visitType} onChange={e => { setVisitType(e.target.value); track('booking_jenis_kunjungan') }} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }}>
                       <option>Konsultasi pertama</option>
                       <option>Follow-up</option>
                       <option>Pemeriksaan rutin</option>
@@ -301,7 +336,7 @@ export default function Home() {
                       {a.status === 'upcoming' ? 'Akan datang' : 'Selesai'}
                     </span>
                     {a.status === 'upcoming' && (
-                      <button onClick={e => { e.stopPropagation(); track('jadwal_cancel_btn', { patient: a.patient }) }} style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #F09595', background: 'none', color: '#A32D2D', cursor: 'pointer' }}>Batalkan</button>
+                      <button onClick={e => { e.stopPropagation(); track('jadwal_cancel_btn', { appointmentId: a.id, patientName: a.patient, doctorName: a.doctor, appointmentTime: a.time, appointmentDate: `${a.date} ${a.month}`, appointmentType: a.type }) }} style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #F09595', background: 'none', color: '#A32D2D', cursor: 'pointer' }}>Batalkan</button>
                     )}
                   </div>
                 </div>
@@ -318,21 +353,16 @@ export default function Home() {
               <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Rekam jejak kesehatan pasien</p>
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
-              <input placeholder="Cari nama pasien..." onChange={() => track('riwayat_search')} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
-              <button onClick={() => track('riwayat_export')} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #e5e5e5', background: 'none', cursor: 'pointer', fontSize: 13 }}>⬇ Ekspor</button>
+              <input placeholder="Cari nama pasien..." value={riwayatSearch} onChange={e => { const q = e.target.value; setRiwayatSearch(q); const allRecords = [{ title: 'Siti Rahayu — Konsultasi umum' }, { title: 'Ani Wijaya — Pemeriksaan jantung' }, { title: 'Budi Santoso — Follow-up diabetes' }, { title: 'Rina Dewi — Imunisasi anak' }]; const count = allRecords.filter(r => !q || r.title.toLowerCase().includes(q.toLowerCase())).length; track('riwayat_search', { searchQuery: q, resultsCount: count }) }} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13 }} />
+              <button onClick={() => track('riwayat_export', { exportFormat: 'csv', recordCount: filteredRecords.length, filterApplied: riwayatSearch || 'none' })} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #e5e5e5', background: 'none', cursor: 'pointer', fontSize: 13 }}>⬇ Ekspor</button>
             </div>
             <div style={{ background: 'white', border: '1px solid #e5e5e5', borderRadius: 12, padding: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, fontWeight: 500, marginBottom: '1rem' }}>
                 Rekam medis terbaru
-                <button onClick={() => track('riwayat_tambah')} style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: 'none', background: '#1D9E75', color: 'white', cursor: 'pointer' }}>+ Tambah</button>
+                <button onClick={() => track('riwayat_tambah', { recordCount: filteredRecords.length, filterApplied: riwayatSearch || 'none' })} style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: 'none', background: '#1D9E75', color: 'white', cursor: 'pointer' }}>+ Tambah</button>
               </div>
-              {[
-                { icon: '🩺', title: 'Siti Rahayu — Konsultasi umum', desc: 'Diagnosa: ISPA ringan. Resep: Amoxicillin 500mg 3x1', date: '28 Mei', bg: '#E1F5EE' },
-                { icon: '❤️', title: 'Ani Wijaya — Pemeriksaan jantung', desc: 'EKG normal. Tekanan darah 120/80. Lanjut kontrol 1 bulan', date: '28 Mei', bg: '#E6F1FB' },
-                { icon: '💊', title: 'Budi Santoso — Follow-up diabetes', desc: 'Gula darah 145 mg/dL. Metformin dilanjutkan. Diet ketat', date: '27 Mei', bg: '#FAEEDA' },
-                { icon: '👶', title: 'Rina Dewi — Imunisasi anak', desc: 'Vaksin DPT booster. Tidak ada reaksi. Jadwal next 3 bulan', date: '26 Mei', bg: '#FBEAF0' },
-              ].map((r, i) => (
-                <div key={i} onClick={() => track('riwayat_item_click', { title: r.title })} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: i < 3 ? '1px solid #f0f0ee' : 'none', cursor: 'pointer' }}>
+              {filteredRecords.map((r, i) => (
+                <div key={i} onClick={() => track('riwayat_item_click', { title: r.title })} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: i < filteredRecords.length - 1 ? '1px solid #f0f0ee' : 'none', cursor: 'pointer' }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: r.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>{r.icon}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{r.title}</div>
